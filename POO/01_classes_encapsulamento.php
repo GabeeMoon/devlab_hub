@@ -70,3 +70,4 @@ try {
     echo "[EXCEÇÃO CAPTURADA] " . $e->getMessage() . "\n";
 }
 echo "</pre>";
+echo '<img src="_assets/images.jpeg" alt="images.jpeg" style="max-width:100%;border-radius:8px;">';

@@ -4,8 +4,8 @@ class FileModel
 {
     private $dir;
     private $assetsDir;
-    private $allowedExts = ['php', 'html', 'css', 'js', 'sql'];
-    private $mediaMap = [
+    private $allowedExts = array('php', 'html', 'css', 'js', 'sql');
+    private $mediaMap = array(
         'jpg'  => 'image',
         'jpeg' => 'image',
         'png'  => 'image',
@@ -17,18 +17,27 @@ class FileModel
         'ogg'  => 'video',
         'mp3'  => 'audio',
         'wav'  => 'audio'
-    ];
+    );
 
-    public function __construct($moduleDir)
+    public function __construct($moduleDir = '')
     {
-        $this->dir = rtrim($moduleDir, DIRECTORY_SEPARATOR);
+        $this->dir = rtrim((string) $moduleDir, DIRECTORY_SEPARATOR);
         $this->assetsDir = $this->dir . DIRECTORY_SEPARATOR . '_assets';
     }
 
     public function all()
     {
-        $files = [];
-        foreach (scandir($this->dir) as $item) {
+        if ($this->dir === '' || !is_dir($this->dir)) {
+            return array();
+        }
+
+        $files = array();
+        $entries = @scandir($this->dir);
+        if (!is_array($entries)) {
+            return array();
+        }
+
+        foreach ($entries as $item) {
             if ($item === '.' || $item === '..' || $item === 'index.php' || $item === '_assets') {
                 continue;
             }
@@ -44,15 +53,15 @@ class FileModel
             }
 
             $mtime = filemtime($path);
-            $files[] = [
+            $files[] = array(
                 'filename' => $item,
-                'title'    => str_replace(['_', '-'], ' ', pathinfo($item, PATHINFO_FILENAME)),
+                'title'    => str_replace(array('_', '-'), ' ', pathinfo($item, PATHINFO_FILENAME)),
                 'ext'      => strtoupper($ext),
                 'size'     => number_format(filesize($path) / 1024, 1, ',', '.') . ' KB',
                 'modified' => date('d/m H:i', $mtime),
                 'mtime'    => $mtime,
                 'desc'     => $this->extractDescription($path)
-            ];
+            );
         }
 
         usort($files, function ($a, $b) {
@@ -65,21 +74,26 @@ class FileModel
         return $files;
     }
 
-    public function read($filename)
+    public function read($filename = '')
     {
         $path = $this->resolveSafePath($filename);
         if (!is_file($path)) {
             throw new RuntimeException('Arquivo não encontrado.');
         }
 
-        return [
+        $content = @file_get_contents($path);
+        if ($content === false) {
+            throw new RuntimeException('Não foi possível ler o arquivo.');
+        }
+
+        return array(
             'filename' => basename($path),
             'ext'      => strtolower(pathinfo($path, PATHINFO_EXTENSION)),
-            'code'     => file_get_contents($path)
-        ];
+            'code'     => $content
+        );
     }
 
-    public function save($filename, $code)
+    public function save($filename = '', $code = '')
     {
         $path = $this->resolveSafePath($filename);
         if (!is_file($path)) {
@@ -89,22 +103,22 @@ class FileModel
             throw new RuntimeException('Arquivo sem permissão de escrita.');
         }
 
-        $bytes = file_put_contents($path, $code);
+        $bytes = @file_put_contents($path, (string) $code);
         if ($bytes === false) {
-            throw new RuntimeException('Falha ao gravar arquivo.');
+            throw new RuntimeException('Falha ao gravar arquivo no disco.');
         }
 
-        return [
+        return array(
             'bytes' => $bytes,
             'time'  => date('H:i:s')
-        ];
+        );
     }
 
-    public function create($rawName, $template = 'oop_basic')
+    public function create($rawName = '', $template = 'oop_basic')
     {
-        $clean = preg_replace('/[^a-zA-Z0-9_\-\.]/', '_', trim($rawName));
+        $clean = preg_replace('/[^a-zA-Z0-9_\-\.]/', '_', trim((string) $rawName));
         if ($clean === '') {
-            throw new InvalidArgumentException('Nome de arquivo inválido.');
+            throw new InvalidArgumentException('Informe um nome válido para o arquivo.');
         }
 
         if (pathinfo($clean, PATHINFO_EXTENSION) === '') {
@@ -119,15 +133,15 @@ class FileModel
             throw new RuntimeException('Diretório sem permissão de escrita.');
         }
 
-        $content = $this->stubContent($clean, $template);
-        if (file_put_contents($path, $content) === false) {
+        $content = $this->stubContent($clean, (string) $template);
+        if (@file_put_contents($path, $content) === false) {
             throw new RuntimeException('Erro ao criar arquivo.');
         }
 
         return $clean;
     }
 
-    public function delete($filename)
+    public function delete($filename = '')
     {
         $path = $this->resolveSafePath($filename);
         if (!is_file($path)) {
@@ -141,11 +155,16 @@ class FileModel
     public function listMedia()
     {
         if (!is_dir($this->assetsDir)) {
-            return [];
+            return array();
         }
 
-        $items = [];
-        foreach (scandir($this->assetsDir) as $entry) {
+        $entries = @scandir($this->assetsDir);
+        if (!is_array($entries)) {
+            return array();
+        }
+
+        $items = array();
+        foreach ($entries as $entry) {
             if ($entry === '.' || $entry === '..') {
                 continue;
             }
@@ -158,26 +177,27 @@ class FileModel
                 continue;
             }
 
-            $items[] = [
+            $items[] = array(
                 'name' => $entry,
                 'url'  => '_assets/' . rawurlencode($entry),
                 'raw'  => '_assets/' . $entry,
                 'kind' => $this->mediaMap[$ext],
                 'ext'  => strtoupper($ext),
                 'size' => number_format(filesize($full) / 1024, 1, ',', '.') . ' KB'
-            ];
+            );
         }
 
         return $items;
     }
 
-    public function uploadMedia($file)
+    public function uploadMedia($file = array())
     {
-        if (!isset($file['error']) || $file['error'] !== UPLOAD_ERR_OK) {
-            throw new RuntimeException('Falha no upload do arquivo (código ' . (isset($file['error']) ? $file['error'] : '?') . ').');
+        if (!is_array($file) || !isset($file['error']) || $file['error'] !== UPLOAD_ERR_OK) {
+            $code = isset($file['error']) ? $file['error'] : 'ausente';
+            throw new RuntimeException('Falha no upload do arquivo (código ' . $code . ').');
         }
 
-        $origName = basename($file['name']);
+        $origName = basename((string) $file['name']);
         $ext = strtolower(pathinfo($origName, PATHINFO_EXTENSION));
         if (!isset($this->mediaMap[$ext])) {
             throw new InvalidArgumentException('Formato não suportado. Use PNG, JPG, GIF, WEBP, SVG, MP4, WEBM, MP3, WAV ou OGG.');
@@ -203,20 +223,20 @@ class FileModel
             $target = $this->assetsDir . DIRECTORY_SEPARATOR . $finalName;
         }
 
-        if (!move_uploaded_file($file['tmp_name'], $target)) {
+        if (!@move_uploaded_file($file['tmp_name'], $target)) {
             throw new RuntimeException('Não foi possível salvar a mídia em _assets.');
         }
 
-        return [
+        return array(
             'name' => $finalName,
             'url'  => '_assets/' . rawurlencode($finalName),
             'raw'  => '_assets/' . $finalName,
             'kind' => $this->mediaMap[$ext],
             'ext'  => strtoupper($ext)
-        ];
+        );
     }
 
-    public function deleteMedia($filename)
+    public function deleteMedia($filename = '')
     {
         $base = basename(trim((string) $filename));
         $ext = strtolower(pathinfo($base, PATHINFO_EXTENSION));
@@ -234,9 +254,11 @@ class FileModel
             throw new RuntimeException('Não foi possível remover a mídia.');
         }
 
-        // Remove pasta _assets se ficar vazia
-        if (is_dir($this->assetsDir) && count(scandir($this->assetsDir)) === 2) {
-            @rmdir($this->assetsDir);
+        if (is_dir($this->assetsDir)) {
+            $left = @scandir($this->assetsDir);
+            if (is_array($left) && count($left) <= 2) {
+                @rmdir($this->assetsDir);
+            }
         }
     }
 
@@ -274,6 +296,21 @@ class FileModel
 
     private function stubContent($filename, $template)
     {
+        $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+
+        if ($ext === 'html') {
+            return "<!DOCTYPE html>\n<html lang=\"pt-BR\">\n<head>\n    <meta charset=\"UTF-8\">\n    <title>{$filename}</title>\n</head>\n<body>\n    <h1>{$filename}</h1>\n</body>\n</html>\n";
+        }
+        if ($ext === 'css') {
+            return "/* Desc: Estilos de {$filename} */\n:root {\n    --primary: #38bdf8;\n}\n\nbody {\n    font-family: sans-serif;\n}\n";
+        }
+        if ($ext === 'js') {
+            return "// Desc: Script {$filename}\ndocument.addEventListener('DOMContentLoaded', function () {\n    console.log('{$filename} carregado');\n});\n";
+        }
+        if ($ext === 'sql') {
+            return "-- Desc: Consultas SQL ({$filename})\nSELECT NOW() AS data_atual, VERSION() AS versao_mysql;\n";
+        }
+
         if ($template === 'oop_db') {
             return "<?php\n// Desc: POO + PDO MySQL\nerror_reporting(E_ALL);\nini_set('display_errors', 1);\n\nrequire_once __DIR__ . '/../config/db.php';\n\n\$pdo = getDbConnection();\n\$stmt = \$pdo->query('SELECT NOW() AS server_time, VERSION() AS version');\nheader('Content-Type: application/json; charset=utf-8');\necho json_encode(\$stmt->fetch(PDO::FETCH_ASSOC), JSON_PRETTY_PRINT);\n";
         }

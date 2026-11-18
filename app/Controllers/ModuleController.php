@@ -5,98 +5,111 @@ class ModuleController
     private $files;
     private $moduleDir;
 
-    public function __construct(FileModel $files, $moduleDir)
+    public function __construct(FileModel $files, $moduleDir = '')
     {
         $this->files = $files;
-        $this->moduleDir = $moduleDir;
+        $this->moduleDir = (string) $moduleDir;
     }
 
     public function index()
     {
         $folder = basename($this->moduleDir);
-        Response::view('module', [
+        Response::view('module', array(
             'folder'     => $folder,
-            'title'      => str_replace(['_', '-'], ' ', $folder),
+            'title'      => str_replace(array('_', '-'), ' ', $folder),
             'phpVersion' => PHP_VERSION,
             'files'      => $this->files->all()
-        ]);
+        ));
     }
 
-    public function handleAction($action)
+    public function handleAction($action = '')
     {
         try {
-            if ($action === 'view_source') {
-                $file = isset($_GET['file']) ? $_GET['file'] : '';
+            $act = trim((string) $action);
+
+            if ($act === 'view_source') {
+                $file = $this->param('file', $this->param('filename', ''));
                 $data = $this->files->read($file);
-                Response::json([
+                Response::json(array(
                     'success'  => true,
                     'filename' => $data['filename'],
                     'ext'      => $data['ext'],
                     'code'     => $data['code']
-                ]);
+                ));
             }
 
-            if ($action === 'save_source') {
-                $file = isset($_POST['file']) ? $_POST['file'] : '';
+            if ($act === 'save_source') {
+                $file = $this->param('file', $this->param('filename', ''));
                 $code = isset($_POST['code']) ? $_POST['code'] : '';
                 $meta = $this->files->save($file, $code);
-                Response::json([
+                Response::json(array(
                     'success' => true,
                     'message' => "Salvo às {$meta['time']} ({$meta['bytes']} B)"
-                ]);
+                ));
             }
 
-            if ($action === 'create_file') {
-                $name = isset($_POST['filename']) ? $_POST['filename'] : '';
-                $tpl = isset($_POST['template']) ? $_POST['template'] : 'oop_basic';
+            if ($act === 'create_file') {
+                $name = $this->param('filename', $this->param('file', ''));
+                $tpl  = $this->param('template', 'oop_basic');
                 $created = $this->files->create($name, $tpl);
-                Response::json([
+                Response::json(array(
                     'success'  => true,
                     'filename' => $created,
                     'message'  => "Arquivo '{$created}' criado."
-                ]);
+                ));
             }
 
-            if ($action === 'delete_file') {
-                $file = isset($_POST['file']) ? $_POST['file'] : '';
+            if ($act === 'delete_file') {
+                $file = $this->param('file', $this->param('filename', ''));
                 $this->files->delete($file);
-                Response::json([
+                Response::json(array(
                     'success' => true,
                     'message' => 'Arquivo excluído.'
-                ]);
+                ));
             }
 
-            if ($action === 'list_media') {
-                Response::json([
+            if ($act === 'list_media') {
+                Response::json(array(
                     'success' => true,
                     'data'    => $this->files->listMedia()
-                ]);
+                ));
             }
 
-            if ($action === 'upload_media') {
+            if ($act === 'upload_media') {
                 if (!isset($_FILES['media'])) {
                     throw new InvalidArgumentException('Nenhum arquivo enviado.');
                 }
                 $media = $this->files->uploadMedia($_FILES['media']);
-                Response::json([
+                Response::json(array(
                     'success' => true,
                     'media'   => $media,
                     'message' => "Mídia '{$media['name']}' anexada."
-                ]);
+                ));
             }
 
-            if ($action === 'delete_media') {
-                $name = isset($_POST['name']) ? $_POST['name'] : '';
+            if ($act === 'delete_media') {
+                $name = $this->param('name', $this->param('file', ''));
                 $this->files->deleteMedia($name);
-                Response::json([
+                Response::json(array(
                     'success' => true,
                     'message' => 'Mídia removida.'
-                ]);
+                ));
             }
 
-            Response::json(['success' => false, 'message' => 'Ação inválida.'], 400);
+            Response::json(array('success' => false, 'message' => 'Ação inválida: ' . $act), 400);
         } catch (Exception $e) {
-            Response::json(['success' => false, 'message' => $e->getMessage()], 400);
+            Response::json(array('success' => false, 'message' => $e->getMessage()), 400);
         }
+    }
+
+    private function param($key, $default = '')
+    {
+        if (isset($_POST[$key])) {
+            return $_POST[$key];
+        }
+        if (isset($_GET[$key])) {
+            return $_GET[$key];
+        }
+        return $default;
     }
 }

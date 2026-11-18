@@ -1,3 +1,8 @@
+<?php
+$title = isset($title) ? $title : 'Módulo';
+$phpVersion = isset($phpVersion) ? $phpVersion : PHP_VERSION;
+$files = isset($files) && is_array($files) ? $files : array();
+?>
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -44,7 +49,7 @@
     </header>
 
     <form id="newFileForm" class="inline-bar hidden">
-        <input type="text" id="newFilename" class="input" style="flex:1.4;" placeholder="06_traits.php" required>
+        <input type="text" id="newFilename" class="input" style="flex:1.4;" placeholder="06_traits.php (ou .html, .css, .js, .sql)" required>
         <select id="newFileTemplate" class="select" style="flex:1;">
             <option value="oop_basic">Classe PHP</option>
             <option value="oop_db">Classe + PDO MySQL</option>
@@ -112,7 +117,7 @@
             <div class="ide-bar-left">
                 <span class="ext-tag mono" id="ideLangBadge">PHP</span>
                 <span class="mono ide-title" id="ideFilename">arquivo.php</span>
-                <span class="dirty-dot hidden" id="ideDirtyDot" title="Não salvo"></span>
+                <span class="dirty-dot hidden" id="ideDirtyDot" title="Alterações não salvas"></span>
             </div>
 
             <div class="btn-group">
@@ -193,14 +198,14 @@
 
         <div class="ide-footer mono">
             <span id="ideStatus">Pronto</span>
-            <span class="muted" id="ideCursorInfo">Ln 1, Col 1 · Ctrl+S Salvar</span>
+            <span class="muted" id="ideCursorInfo">Ln 1, Col 1 · Ctrl+S Salvar · Ctrl+V Colar Mídia</span>
         </div>
     </div>
 </div>
 
 <!-- MEDIA MANAGER MODAL -->
 <div class="modal-overlay hidden" id="mediaModal">
-    <div class="modal-box" style="max-width:680px;">
+    <div class="modal-box" style="max-width:700px;">
         <div class="modal-head">
             <h3>Mídias &amp; Anexos (<span class="mono">_assets/</span>)</h3>
             <button type="button" class="icon-btn" id="btnCloseMedia">
