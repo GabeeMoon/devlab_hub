@@ -1,13 +1,19 @@
 <?php
-// Matriz de Módulo com Mini-IDE Split View - Compatível com PHP 5.6
-$materiaAtual = str_replace(array('_', '-'), ' ', basename(__DIR__));
-$dirAtual = __DIR__;
+// Motor Único de Módulo com Split IDE + Exclusão - Compatível com PHP 5.6
+if (!defined('MODULE_DIR')) {
+    header('HTTP/1.1 403 Forbidden');
+    exit('Acesso direto ao template não permitido.');
+}
 
-// Endpoints AJAX da Mini-IDE (Ler, Salvar e Criar Arquivos)
+$dirAtual = MODULE_DIR;
+$materiaAtual = str_replace(array('_', '-'), ' ', basename($dirAtual));
+
+// Endpoints AJAX da Mini-IDE (Ler, Salvar, Criar e Excluir Arquivos)
 if (isset($_GET['ide_action'])) {
     header('Content-Type: application/json; charset=utf-8');
     $action = $_GET['ide_action'];
     $response = array('success' => false, 'message' => '');
+    $allowedExts = array('php', 'html', 'css', 'js', 'sql');
 
     // 1. Ler código-fonte
     if ($action === 'view_source') {
@@ -15,7 +21,7 @@ if (isset($_GET['ide_action'])) {
         $targetPath = $dirAtual . DIRECTORY_SEPARATOR . $requestedFile;
         $ext = strtolower(pathinfo($requestedFile, PATHINFO_EXTENSION));
 
-        if ($requestedFile !== 'index.php' && in_array($ext, array('php', 'html', 'css', 'js', 'sql')) && is_file($targetPath)) {
+        if ($requestedFile !== 'index.php' && in_array($ext, $allowedExts) && is_file($targetPath)) {
             $response['success'] = true;
             $response['filename'] = $requestedFile;
             $response['code'] = file_get_contents($targetPath);
@@ -33,7 +39,7 @@ if (isset($_GET['ide_action'])) {
         $targetPath = $dirAtual . DIRECTORY_SEPARATOR . $requestedFile;
         $ext = strtolower(pathinfo($requestedFile, PATHINFO_EXTENSION));
 
-        if ($requestedFile === 'index.php' || !in_array($ext, array('php', 'html', 'css', 'js', 'sql')) || !is_file($targetPath)) {
+        if ($requestedFile === 'index.php' || !in_array($ext, $allowedExts) || !is_file($targetPath)) {
             $response['message'] = 'Arquivo inválido ou protegido contra edição.';
         } elseif (!is_writable($targetPath)) {
             $response['message'] = 'Sem permissão de escrita no arquivo. Rode chmod -R 777 na pasta Estudos.';
@@ -101,6 +107,30 @@ if (isset($_GET['ide_action'])) {
             $response['message'] = 'Erro ao criar o arquivo no servidor.';
         }
 
+        echo json_encode($response);
+        exit;
+    }
+
+    // 4. Excluir arquivo de estudo
+    if ($action === 'delete_file') {
+        $requestedFile = isset($_POST['file']) ? basename($_POST['file']) : '';
+        $targetPath = $dirAtual . DIRECTORY_SEPARATOR . $requestedFile;
+        $ext = strtolower(pathinfo($requestedFile, PATHINFO_EXTENSION));
+
+        if ($requestedFile === '' || $requestedFile === 'index.php' || !in_array($ext, $allowedExts)) {
+            $response['message'] = 'Arquivo inválido ou protegido contra exclusão.';
+        } elseif (!is_file($targetPath)) {
+            $response['message'] = 'O arquivo não existe mais no servidor.';
+        } elseif (!is_writable($targetPath) && !is_writable($dirAtual)) {
+            $response['message'] = 'Sem permissão para excluir este arquivo. Verifique permissões na VM.';
+        } else {
+            if (@unlink($targetPath)) {
+                $response['success'] = true;
+                $response['message'] = "Arquivo '$requestedFile' excluído com sucesso.";
+            } else {
+                $response['message'] = 'Não foi possível excluir o arquivo no disco.';
+            }
+        }
         echo json_encode($response);
         exit;
     }
@@ -172,6 +202,7 @@ usort($arquivosEstudo, function ($a, $b) {
             --accent-glow: rgba(56, 189, 248, 0.16);
             --success: #10b981;
             --danger: #ef4444;
+            --danger-bg: rgba(239, 68, 68, 0.12);
             --radius: 12px;
         }
 
@@ -286,7 +317,7 @@ usort($arquivosEstudo, function ($a, $b) {
         .file-info h3 { font-size: 1.08rem; color: var(--text-primary); }
         .file-desc { font-size: 0.88rem; color: var(--text-secondary); margin-bottom: 0.45rem; }
         .file-meta { font-size: 0.78rem; color: var(--text-secondary); font-family: monospace; }
-        .file-actions { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+        .file-actions { display: flex; gap: 0.55rem; flex-wrap: wrap; }
 
         .btn {
             cursor: pointer;
@@ -318,6 +349,17 @@ usort($arquivosEstudo, function ($a, $b) {
             border-color: var(--success);
         }
         .btn-success:hover { background: #34d399; color: #04130d; }
+
+        .btn-danger {
+            background: var(--danger-bg);
+            color: #fca5a5;
+            border-color: rgba(239, 68, 68, 0.35);
+        }
+        .btn-danger:hover {
+            background: var(--danger);
+            color: #ffffff;
+            border-color: var(--danger);
+        }
 
         .empty-box {
             background: var(--bg-surface);
@@ -389,7 +431,6 @@ usort($arquivosEstudo, function ($a, $b) {
 
         .ide-toolbar { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
 
-        /* Workspace Split View (Esquerda: Código | Direita: Saída PHP) */
         .ide-workspace {
             flex: 1;
             display: flex;
@@ -436,7 +477,6 @@ usort($arquivosEstudo, function ($a, $b) {
             tab-size: 4;
         }
 
-        /* Divisor arrastável */
         .ide-resizer {
             width: 6px;
             background: var(--border-color);
@@ -448,7 +488,6 @@ usort($arquivosEstudo, function ($a, $b) {
             background: var(--accent);
         }
 
-        /* Painel Direito: Execução ao Vivo */
         .ide-pane-right {
             flex: 1;
             min-width: 240px;
@@ -458,9 +497,7 @@ usort($arquivosEstudo, function ($a, $b) {
             overflow: hidden;
         }
 
-        .ide-pane-right.hidden {
-            display: none;
-        }
+        .ide-pane-right.hidden { display: none; }
 
         .preview-topbar {
             background: #131a2a;
@@ -483,10 +520,7 @@ usort($arquivosEstudo, function ($a, $b) {
             font-weight: 600;
         }
 
-        .preview-actions {
-            display: flex;
-            gap: 0.4rem;
-        }
+        .preview-actions { display: flex; gap: 0.4rem; }
 
         .btn-mini {
             cursor: pointer;
@@ -540,7 +574,7 @@ usort($arquivosEstudo, function ($a, $b) {
     <nav class="top-nav">
         <a href="../index.php" class="btn-back">&larr; Voltar ao DevLab Hub</a>
         <span style="font-size: 0.82rem; color: var(--text-secondary); font-family: monospace;">
-            /Estudos/<?php echo htmlspecialchars(basename(__DIR__)); ?>/
+            /Estudos/<?php echo htmlspecialchars(basename($dirAtual)); ?>/ (Motor Único)
         </span>
     </nav>
 
@@ -569,7 +603,7 @@ usort($arquivosEstudo, function ($a, $b) {
     <section class="files-list" id="filesList">
         <?php if (count($arquivosEstudo) > 0): ?>
             <?php foreach ($arquivosEstudo as $arq): ?>
-                <article class="file-card" data-search="<?php echo htmlspecialchars(strtolower($arq['filename'] . ' ' . $arq['title'] . ' ' . $arq['desc'])); ?>">
+                <article class="file-card" id="card-<?php echo htmlspecialchars($arq['filename']); ?>" data-search="<?php echo htmlspecialchars(strtolower($arq['filename'] . ' ' . $arq['title'] . ' ' . $arq['desc'])); ?>">
                     <div class="file-info">
                         <div class="file-title-row">
                             <span class="ext-badge"><?php echo htmlspecialchars($arq['ext']); ?></span>
@@ -584,11 +618,14 @@ usort($arquivosEstudo, function ($a, $b) {
                     </div>
                     <div class="file-actions">
                         <button type="button" class="btn btn-primary" onclick="abrirIDE('<?php echo htmlspecialchars($arq['filename'], ENT_QUOTES); ?>')">
-                            Abrir Split IDE (Código + Saída)
+                            Abrir Split IDE
                         </button>
                         <a href="<?php echo rawurlencode($arq['filename']); ?>" class="btn" target="_blank">
                             Nova Aba &rarr;
                         </a>
+                        <button type="button" class="btn btn-danger" onclick="excluirArquivo('<?php echo htmlspecialchars($arq['filename'], ENT_QUOTES); ?>', false)">
+                            Excluir
+                        </button>
                     </div>
                 </article>
             <?php endforeach; ?>
@@ -601,7 +638,7 @@ usort($arquivosEstudo, function ($a, $b) {
     </section>
 </div>
 
-<!-- Mini-IDE Split View Modal -->
+<!-- Mini-IDE Modal Split View -->
 <div class="modal-backdrop" id="ideModal">
     <div class="ide-window">
         <div class="ide-header">
@@ -615,21 +652,19 @@ usort($arquivosEstudo, function ($a, $b) {
                 <button type="button" class="btn" onclick="recarregarPreview()">Rodar Novamente</button>
                 <button type="button" class="btn" id="btnToggleSplit" onclick="alternarModoSplit()">Ocultar Saída</button>
                 <a href="#" id="ideRunLink" class="btn" target="_blank">Nova Aba &rarr;</a>
+                <button type="button" class="btn btn-danger" onclick="excluirArquivoAtualIDE()">Excluir Arquivo</button>
                 <button type="button" class="btn" onclick="fecharIDE()">Fechar</button>
             </div>
         </div>
 
         <div class="ide-workspace" id="ideWorkspace">
-            <!-- Esquerda: Editor de Código -->
             <div class="ide-pane-left" id="idePaneLeft">
                 <div class="ide-gutter" id="ideGutter">1</div>
                 <textarea id="ideTextarea" class="ide-textarea" spellcheck="false"></textarea>
             </div>
 
-            <!-- Divisor Arrastável -->
             <div class="ide-resizer" id="ideResizer" title="Arraste para redimensionar os painéis"></div>
 
-            <!-- Direita: Resultado da Execução PHP -->
             <div class="ide-pane-right" id="idePaneRight">
                 <div class="preview-topbar">
                     <span class="preview-badge">&#9679; Saída PHP ao Vivo</span>
@@ -693,6 +728,50 @@ usort($arquivosEstudo, function ($a, $b) {
         xhr.send(formData);
     }
 
+    function excluirArquivo(filename, fromIDE) {
+        if (!filename) return;
+        if (!confirm("Tem certeza que deseja excluir permanentemente o arquivo '" + filename + "'?\nEsta ação não pode ser desfeita.")) {
+            return;
+        }
+
+        var formData = new FormData();
+        formData.append('file', filename);
+
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', 'index.php?ide_action=delete_file', true);
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState === 4) {
+                try {
+                    var res = JSON.parse(xhr.responseText);
+                    if (res.success) {
+                        if (fromIDE) {
+                            hasUnsavedChanges = false;
+                            document.getElementById('idePreviewFrame').src = 'about:blank';
+                            document.getElementById('ideModal').className = 'modal-backdrop';
+                            window.location.reload();
+                        } else {
+                            var card = document.getElementById('card-' + filename);
+                            if (card) {
+                                card.parentNode.removeChild(card);
+                            } else {
+                                window.location.reload();
+                            }
+                        }
+                    } else {
+                        alert('Erro ao excluir: ' + res.message);
+                    }
+                } catch (e) {
+                    alert('Erro inesperado ao excluir o arquivo.');
+                }
+            }
+        };
+        xhr.send(formData);
+    }
+
+    function excluirArquivoAtualIDE() {
+        excluirArquivo(currentEditingFile, true);
+    }
+
     function filtrarArquivos() {
         var termo = document.getElementById('filterInput').value.toLowerCase();
         var cards = document.querySelectorAll('.file-card');
@@ -716,7 +795,6 @@ usort($arquivosEstudo, function ($a, $b) {
     function recarregarPreview() {
         if (!currentEditingFile) return;
         var iframe = document.getElementById('idePreviewFrame');
-        // Timestamp evita cache do navegador ao reexecutar o PHP
         iframe.src = encodeURIComponent(currentEditingFile) + '?_exec=' + new Date().getTime();
     }
 
@@ -759,7 +837,6 @@ usort($arquivosEstudo, function ($a, $b) {
         document.getElementById('ideDirtyDot').className = 'ide-dirty-dot';
         modal.className = 'modal-backdrop active';
 
-        // Garante que o painel direito esteja visível e executando
         document.getElementById('idePaneRight').classList.remove('hidden');
         document.getElementById('ideResizer').style.display = 'block';
         document.getElementById('btnToggleSplit').textContent = 'Ocultar Saída';
@@ -812,7 +889,6 @@ usort($arquivosEstudo, function ($a, $b) {
                         document.getElementById('ideDirtyDot').className = 'ide-dirty-dot';
                         statusMsg.style.color = '#10b981';
                         statusMsg.textContent = res.message;
-                        // Atualiza automaticamente o painel direito com a nova saída do PHP
                         recarregarPreview();
                     } else {
                         statusMsg.style.color = '#ef4444';
@@ -840,7 +916,6 @@ usort($arquivosEstudo, function ($a, $b) {
         }
     }
 
-    // Eventos do Editor e Divisor Arrastável
     window.addEventListener('DOMContentLoaded', function () {
         var textarea = document.getElementById('ideTextarea');
         var gutter = document.getElementById('ideGutter');
@@ -876,13 +951,11 @@ usort($arquivosEstudo, function ($a, $b) {
             }
         });
 
-        // Lógica da divisória arrastável entre código e saída
         var isResizing = false;
 
-        resizer.addEventListener('mousedown', function (e) {
+        resizer.addEventListener('mousedown', function () {
             isResizing = true;
             resizer.classList.add('dragging');
-            // Evita que o iframe capture eventos do mouse durante o arraste
             document.getElementById('idePreviewFrame').style.pointerEvents = 'none';
             document.body.style.userSelect = 'none';
         });
